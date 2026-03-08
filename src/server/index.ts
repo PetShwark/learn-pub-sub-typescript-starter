@@ -1,8 +1,19 @@
 import amqp from "amqplib";
 import { publishJSON } from "../internal/pubsub/publish_json.js";
-import { ExchangePerilDirect, PauseKey } from "../internal/routing/routing.js";
-import { type PlayingState } from "../internal/gamelogic/gamestate.js";
-import { printServerHelp, getInput } from "../internal/gamelogic/gamelogic.js";
+import {
+  ExchangePerilDirect,
+  ExchangePerilTopic,
+  PauseKey
+} from "../internal/routing/routing.js";
+import {
+  printServerHelp,
+  getInput
+} from "../internal/gamelogic/gamelogic.js";
+import {
+  declareAndBind,
+  SimpleQueueType
+} from "../internal/pubsub/declare_bind.js";
+
 
 async function main() {
   const connectionString = "amqp://guest:guest@localhost:5672/";
@@ -12,8 +23,13 @@ async function main() {
   const confirmChannel = await connection.createConfirmChannel();
   console.log("Confirm channel created");
 
-
-  printServerHelp();
+  const gameLogsQueue = declareAndBind(
+    connection,
+    ExchangePerilTopic,
+    "game_logs",
+    "game_logs.*",
+    SimpleQueueType.Durable
+  );
 
   process.on("SIGINT", async () => {
     console.log("Closing RabbitMQ connection...");
@@ -22,6 +38,7 @@ async function main() {
   });
 
   while (true) {
+    printServerHelp();
     const userInput = await getInput();
     if (userInput.length > 0) {
       switch (userInput[0]) {
