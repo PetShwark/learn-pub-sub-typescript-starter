@@ -17,6 +17,8 @@ import {
   ExchangePerilDirect,
   PauseKey
 } from "../internal/routing/routing.js";
+import { subscribeJSON } from "../internal/pubsub/subscribe_json.js";
+import { handlerPause } from "./handlers.js";
 
 
 async function main() {
@@ -24,14 +26,23 @@ async function main() {
   const connection = await amqp.connect(connectionString);
   console.log("Connected to RabbitMQ");
   const userName = await clientWelcome();
-  const stuff = declareAndBind(
+  const queueName = `${PauseKey}.${userName}`;
+  const stuff = await declareAndBind(
     connection,
     ExchangePerilDirect,
-    `${PauseKey}.${userName}`,
+    queueName,
     PauseKey,
     SimpleQueueType.Transient
   );
   const gameState = new GameState(userName);
+  await subscribeJSON(
+    connection,
+    ExchangePerilDirect,
+    queueName,
+    PauseKey,
+    SimpleQueueType.Transient,
+    handlerPause(gameState)
+  );
   // REPL loop
   while (true) {
     const userInput = await getInput();
@@ -41,10 +52,15 @@ async function main() {
           commandSpawn(gameState, userInput);
           break;
         case "move":
-          commandMove(gameState, userInput);
+          try {
+            commandMove(gameState, userInput);
+          }
+          catch (error) {
+            console.log("The game is paused.  You may not move.");
+          };
           break;
         case "status":
-          commandStatus(gameState);
+          await commandStatus(gameState);
           break;
         case "help":
           printClientHelp();

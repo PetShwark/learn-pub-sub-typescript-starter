@@ -8,5 +8,10 @@ export async function publishJSON<T>(
 ): Promise<void> {
     const jsonString = JSON.stringify(value);
     const buffer = Buffer.from(jsonString, "utf-8");
-    const publist_result = ch.publish(exchange, routingKey, buffer, { contentType: "application/json" });
+    const publist_result = ch.publish(
+        exchange,
+        routingKey,
+        buffer,
+        { contentType: "application/json" }
+    );
 }
