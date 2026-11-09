@@ -7,6 +7,7 @@ import {
   printQuit
 } from "../internal/gamelogic/gamelogic.js";
 import { GameState } from "../internal/gamelogic/gamestate.js";
+import { type ArmyMove } from "../internal/gamelogic/gamedata.js";
 import { commandSpawn } from "../internal/gamelogic/spawn.js";
 import { commandMove } from "../internal/gamelogic/move.js";
 import {
@@ -14,19 +15,32 @@ import {
   SimpleQueueType
 } from "../internal/pubsub/declare_bind.js";
 import {
+  ArmyMovesPrefix,
   ExchangePerilDirect,
+  ExchangePerilTopic,
   PauseKey
 } from "../internal/routing/routing.js";
 import { subscribeJSON } from "../internal/pubsub/subscribe_json.js";
-import { handlerPause } from "./handlers.js";
+import { handlerMove, handlerPause } from "./handlers.js";
+import { publishJSON } from "../internal/pubsub/publish_json.js";
 
+function errorLog(error: unknown): void {
+  if (error instanceof Error) {
+    console.error(error.message);
+  } else {
+    console.error("Unknown error:", String(error));
+  }
+}
 
 async function main() {
   const connectionString = "amqp://guest:guest@localhost:5672/";
   const connection = await amqp.connect(connectionString);
   console.log("Connected to RabbitMQ");
+  const channel = await connection.createConfirmChannel();
+  console.log("Confirm channel created.")
   const userName = await clientWelcome();
   const queueName = `${PauseKey}.${userName}`;
+  const armyMovesQueueName = `army_moves.${userName}`;
   const stuff = await declareAndBind(
     connection,
     ExchangePerilDirect,
@@ -43,21 +57,34 @@ async function main() {
     SimpleQueueType.Transient,
     handlerPause(gameState)
   );
+  await subscribeJSON(
+    connection,
+    ExchangePerilTopic,
+    armyMovesQueueName,
+    `${ArmyMovesPrefix}.*`,
+    SimpleQueueType.Transient,
+    handlerMove(gameState)
+  );
   // REPL loop
   while (true) {
     const userInput = await getInput();
     if (userInput.length > 0) {
       switch (userInput[0]) {
         case "spawn":
-          commandSpawn(gameState, userInput);
+          try {
+            commandSpawn(gameState, userInput);
+          } catch (error) {
+            errorLog(error);
+          }
           break;
         case "move":
           try {
-            commandMove(gameState, userInput);
+            const armyMove = commandMove(gameState, userInput);
+            await publishJSON(channel, ExchangePerilTopic, armyMovesQueueName, armyMove);
           }
           catch (error) {
-            console.log("The game is paused.  You may not move.");
-          };
+            errorLog(error);
+          }
           break;
         case "status":
           await commandStatus(gameState);
