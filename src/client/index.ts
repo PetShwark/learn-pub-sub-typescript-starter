@@ -26,7 +26,7 @@ import { handlerMove, handlerPause, handlerWarMessages } from "./handlers.js";
 import { publishJSON } from "../internal/pubsub/publish_json.js";
 import { handleWar } from "../internal/gamelogic/war.js";
 
-function errorLog(error: unknown): void {
+export function errorLog(error: unknown): void {
   if (error instanceof Error) {
     console.error(error.message);
   } else {

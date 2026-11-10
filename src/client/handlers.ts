@@ -8,6 +8,7 @@ import { publishJSON } from "../internal/pubsub/publish_json.js";
 import { ArmyMovesPrefix, ExchangePerilTopic } from "../internal/routing/routing.js";
 import { WarRecognitionsPrefix } from "../internal/routing/routing.js";
 import { handleWar, WarOutcome, type WarResolution } from "../internal/gamelogic/war.js";
+import { errorLog } from "./index.js";
 
 export function handlerPause(gs: GameState): (ps: PlayingState) => acktype {
     return (ps) => {
@@ -30,13 +31,18 @@ export function handlerMove(gs: GameState, cc: ConfirmChannel): (am: ArmyMove) =
                     attacker: am.player,
                     defender: gs.getPlayerSnap(),
                 };
-                publishJSON(
-                    cc,
-                    ExchangePerilTopic,
-                    `${WarRecognitionsPrefix}.${am.player.username}`,
-                    rw
-                );
-                resultAckType = "NackRequeue";
+                try {
+                    publishJSON(
+                        cc,
+                        ExchangePerilTopic,
+                        `${WarRecognitionsPrefix}.${am.player.username}`,
+                        rw
+                    );
+                    resultAckType = "Ack";
+                } catch (error) {
+                    errorLog(error);
+                    resultAckType = "NackRequeue";
+                }
                 break;
             case MoveOutcome.SamePlayer:
                 resultAckType = "NackDiscard";
