@@ -8,7 +8,7 @@ import { publishJSON } from "../internal/pubsub/publish_json.js";
 import { ArmyMovesPrefix, ExchangePerilTopic } from "../internal/routing/routing.js";
 import { WarRecognitionsPrefix } from "../internal/routing/routing.js";
 import { handleWar, WarOutcome, type WarResolution } from "../internal/gamelogic/war.js";
-import { errorLog } from "./index.js";
+import { errorLog, publishGameLog } from "./index.js";
 
 export function handlerPause(gs: GameState): (ps: PlayingState) => acktype {
     return (ps) => {
@@ -57,16 +57,32 @@ export function handlerMove(gs: GameState, cc: ConfirmChannel): (am: ArmyMove) =
 }
 
 
-export function handlerWarMessages(gs: GameState): (rw: RecognitionOfWar) => acktype {
+export function handlerWarMessages(gs: GameState, cc: ConfirmChannel): (rw: RecognitionOfWar) => acktype {
     return (rw) => {
         const warResolution = handleWar(gs, rw);
-        var resultAckType: acktype;
+        const userName = gs.getPlayerSnap().username
+        let resultAckType: acktype;
+        let message: string;
         switch (warResolution.result) {
             case WarOutcome.YouWon:
-                resultAckType = "Ack";
+                message = `${warResolution.winner} won a war against ${warResolution.loser}`;
+                try {
+                    publishGameLog(cc, userName, message);
+                    resultAckType = "Ack";
+                } catch (error) {
+                    errorLog(error);
+                    resultAckType = "NackRequeue";
+                }
                 break;
             case WarOutcome.Draw:
-                resultAckType = "Ack";
+                message = `A war between ${warResolution.attacker} and ${warResolution.defender} resulted in a draw`;
+                try {
+                    publishGameLog(cc, userName, message);
+                    resultAckType = "Ack";
+                } catch (error) {
+                    errorLog(error);
+                    resultAckType = "NackRequeue";
+                }
                 break;
             case WarOutcome.NoUnits:
                 resultAckType = "NackDiscard";
@@ -75,7 +91,14 @@ export function handlerWarMessages(gs: GameState): (rw: RecognitionOfWar) => ack
                 resultAckType = "NackRequeue";
                 break;
             case WarOutcome.OpponentWon:
-                resultAckType = "Ack";
+                message = `${warResolution.winner} won a war against ${warResolution.loser}`;
+                try {
+                    publishGameLog(cc, userName, message);
+                    resultAckType = "Ack";
+                } catch (error) {
+                    errorLog(error);
+                    resultAckType = "NackRequeue";
+                }
                 break;
         }
         process.stdout.write("> ");

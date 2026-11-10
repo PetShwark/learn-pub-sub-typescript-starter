@@ -6,6 +6,7 @@ import {
   printClientHelp,
   printQuit
 } from "../internal/gamelogic/gamelogic.js";
+import { type GameLog } from "../internal/gamelogic/logs.js";
 import { GameState } from "../internal/gamelogic/gamestate.js";
 import { type ArmyMove } from "../internal/gamelogic/gamedata.js";
 import { commandSpawn } from "../internal/gamelogic/spawn.js";
@@ -19,11 +20,12 @@ import {
   ExchangePerilDirect,
   ExchangePerilTopic,
   PauseKey,
-  WarRecognitionsPrefix
+  WarRecognitionsPrefix,
+  GameLogSlug
 } from "../internal/routing/routing.js";
 import { subscribeJSON } from "../internal/pubsub/subscribe_json.js";
 import { handlerMove, handlerPause, handlerWarMessages } from "./handlers.js";
-import { publishJSON } from "../internal/pubsub/publish_json.js";
+import { publishJSON, publishMsgPack } from "../internal/pubsub/publish_json.js";
 import { handleWar } from "../internal/gamelogic/war.js";
 
 export function errorLog(error: unknown): void {
@@ -32,6 +34,24 @@ export function errorLog(error: unknown): void {
   } else {
     console.error("Unknown error:", String(error));
   }
+}
+
+export function publishGameLog(
+  ch: amqp.ConfirmChannel,
+  userName: string,
+  message: string
+): void {
+  const log: GameLog = {
+    username: userName,
+    message: message,
+    currentTime: new Date()
+  }
+  publishMsgPack(
+    ch,
+    ExchangePerilTopic,
+    `${GameLogSlug}.${userName}`,
+    log
+  );
 }
 
 async function main() {
@@ -73,7 +93,7 @@ async function main() {
     `${WarRecognitionsPrefix}`,
     `${WarRecognitionsPrefix}.*`,
     SimpleQueueType.Durable,
-    handlerWarMessages(gameState)
+    handlerWarMessages(gameState, channel)
   )
   // REPL loop
   while (true) {
