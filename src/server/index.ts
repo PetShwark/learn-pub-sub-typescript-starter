@@ -1,5 +1,6 @@
 import amqp from "amqplib";
 import { publishJSON } from "../internal/pubsub/publish_json.js";
+import { subscribeMsgPack } from "../internal/pubsub/subscribe_json.js";
 import {
   ExchangePerilDirect,
   ExchangePerilTopic,
@@ -13,6 +14,7 @@ import {
   declareAndBind,
   SimpleQueueType
 } from "../internal/pubsub/declare_bind.js";
+import { writeLog, type GameLog } from "../internal/gamelogic/logs.js";
 
 
 async function main() {
@@ -23,13 +25,25 @@ async function main() {
   const confirmChannel = await connection.createConfirmChannel();
   console.log("Confirm channel created");
 
-  const gameLogsQueue = declareAndBind(
+  await subscribeMsgPack(
     connection,
     ExchangePerilTopic,
     "game_logs",
-    "game_logs.*",
-    SimpleQueueType.Durable
+    "*",
+    SimpleQueueType.Durable,
+    async (gameLog) => {
+      await writeLog(gameLog as GameLog);
+      console.log("> ");
+    }
   );
+
+  // const gameLogsQueue = declareAndBind(
+  //   connection,
+  //   ExchangePerilTopic,
+  //   "game_logs",
+  //   "game_logs.*",
+  //   SimpleQueueType.Durable
+  // );
 
   process.on("SIGINT", async () => {
     console.log("Closing RabbitMQ connection...");

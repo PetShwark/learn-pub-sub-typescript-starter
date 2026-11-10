@@ -1,7 +1,25 @@
 import amqp from "amqplib";
 import { type SimpleQueueType, declareAndBind } from "./declare_bind.js";
+import { decode } from "@msgpack/msgpack";
 
 export type acktype = "Ack" | "NackRequeue" | "NackDiscard";
+
+export async function subscribeMsgPack<T>(
+    conn: amqp.ChannelModel,
+    exchange: string,
+    queueName: string,
+    key: string,
+    queueType: SimpleQueueType,
+    handler: (data: T) => Promise<void>,
+): Promise<void> {
+    const [channel, assertQueue] = await declareAndBind(conn, exchange, queueName, key, queueType);
+    await channel.consume(assertQueue.queue, async (msg) => {
+        if (msg !== null) {
+            const decodedMsg = decode(msg.content);
+            await handler(decodedMsg as T);
+        }
+    });
+}
 
 export async function subscribeJSON<T>(
     conn: amqp.ChannelModel,
