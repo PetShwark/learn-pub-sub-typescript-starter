@@ -18,11 +18,13 @@ import {
   ArmyMovesPrefix,
   ExchangePerilDirect,
   ExchangePerilTopic,
-  PauseKey
+  PauseKey,
+  WarRecognitionsPrefix
 } from "../internal/routing/routing.js";
 import { subscribeJSON } from "../internal/pubsub/subscribe_json.js";
-import { handlerMove, handlerPause } from "./handlers.js";
+import { handlerMove, handlerPause, handlerWarMessages } from "./handlers.js";
 import { publishJSON } from "../internal/pubsub/publish_json.js";
+import { handleWar } from "../internal/gamelogic/war.js";
 
 function errorLog(error: unknown): void {
   if (error instanceof Error) {
@@ -37,7 +39,7 @@ async function main() {
   const connection = await amqp.connect(connectionString);
   console.log("Connected to RabbitMQ");
   const channel = await connection.createConfirmChannel();
-  console.log("Confirm channel created.")
+  console.log("Confirm channel created.");
   const userName = await clientWelcome();
   const queueName = `${PauseKey}.${userName}`;
   const armyMovesQueueName = `army_moves.${userName}`;
@@ -63,8 +65,16 @@ async function main() {
     armyMovesQueueName,
     `${ArmyMovesPrefix}.*`,
     SimpleQueueType.Transient,
-    handlerMove(gameState)
+    handlerMove(gameState, channel)
   );
+  await subscribeJSON(
+    connection,
+    ExchangePerilTopic,
+    `${WarRecognitionsPrefix}`,
+    `${WarRecognitionsPrefix}.*`,
+    SimpleQueueType.Durable,
+    handlerWarMessages(gameState)
+  )
   // REPL loop
   while (true) {
     const userInput = await getInput();

@@ -9,12 +9,12 @@ export async function subscribeJSON<T>(
     queueName: string,
     key: string,
     queueType: SimpleQueueType,
-    handler: (data: T) => acktype,
+    handler: (data: T) => Promise<acktype> | acktype,
 ): Promise<void> {
     const [channel, assertQueue] = await declareAndBind(conn, exchange, queueName, key, queueType);
-    await channel.consume(assertQueue.queue, (msg) => {
+    await channel.consume(assertQueue.queue, async (msg) => {
         if (msg !== null) {
-            const ack = handler(JSON.parse(msg.content.toString()));
+            const ack = await handler(JSON.parse(msg.content.toString()));
             switch (ack) {
                 case "Ack":
                     channel.ack(msg);
