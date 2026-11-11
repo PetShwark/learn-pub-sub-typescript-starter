@@ -53,6 +53,11 @@ async function main() {
 
   while (true) {
     printServerHelp();
+    // Used to run the server from a non-interactive source, like the multiserver.sh file
+    if (!process.stdin.isTTY) {
+      console.log("Non-interactive mode: skipping command input.");
+      return;
+    }
     const userInput = await getInput();
     if (userInput.length > 0) {
       switch (userInput[0]) {
