@@ -13,7 +13,7 @@ export async function subscribeMsgPack<T>(
     handler: (data: T) => Promise<void>,
 ): Promise<void> {
     const [channel, assertQueue] = await declareAndBind(conn, exchange, queueName, key, queueType);
-    await channel.prefetch(1);
+    await channel.prefetch(10);
     await channel.consume(assertQueue.queue, async (msg) => {
         if (msg !== null) {
             const decodedMsg = decode(msg.content);
