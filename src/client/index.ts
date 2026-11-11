@@ -8,7 +8,7 @@ import {
 } from "../internal/gamelogic/gamelogic.js";
 import { type GameLog } from "../internal/gamelogic/logs.js";
 import { GameState } from "../internal/gamelogic/gamestate.js";
-import { type ArmyMove } from "../internal/gamelogic/gamedata.js";
+import { getMaliciousLog } from "../internal/gamelogic/gamelogic.js";
 import { commandSpawn } from "../internal/gamelogic/spawn.js";
 import { commandMove } from "../internal/gamelogic/move.js";
 import {
@@ -26,7 +26,6 @@ import {
 import { subscribeJSON } from "../internal/pubsub/subscribe_json.js";
 import { handlerMove, handlerPause, handlerWarMessages } from "./handlers.js";
 import { publishJSON, publishMsgPack } from "../internal/pubsub/publish_json.js";
-import { handleWar } from "../internal/gamelogic/war.js";
 
 export function errorLog(error: unknown): void {
   if (error instanceof Error) {
@@ -127,7 +126,31 @@ async function main() {
           process.exit(0);
           break;
         case "spam":
-          console.log("Spamming not allowed yet!.");
+          let errorMsg = "'spam' command requires a single non-zero, positive integer parameter.";
+          if (userInput.length == 2) {
+            const spamCount = parseInt(userInput[1] ?? "");
+            if (Number.isNaN(spamCount)) {
+              console.log(errorMsg);
+            } else if (spamCount <= 0) {
+              console.log(errorMsg);
+            } else {
+              for (let i = 0; i < spamCount; i++) {
+                const maliciousLog = getMaliciousLog();
+                const gameLog: GameLog = {
+                  message: maliciousLog,
+                  currentTime: new Date(),
+                  username: userName
+                }
+                await publishMsgPack(
+                  channel,
+                  ExchangePerilTopic,
+                  `game_logs.${userName}`,
+                  gameLog);
+              }
+            }
+          } else {
+            console.log(errorMsg);
+          }
           break;
         default:
           console.log(`Command ${userInput[0]} unknown.`);
